@@ -1,0 +1,364 @@
+## Example: Application URL is not working
+
+Suppose your application should be available at:
+
+```text
+https://myapp.example.com
+```
+
+But the user says:
+
+> "The application is not opening."
+
+You can troubleshoot **from basic connectivity → DNS → network path → port → HTTP → packets**.
+
+---
+
+### 1. `ping` — Check basic connectivity
+
+```bash
+ping myapp.example.com
+```
+
+Example:
+
+```text
+64 bytes from 10.10.20.50: icmp_seq=1 ttl=55 time=20 ms
+64 bytes from 10.10.20.50: icmp_seq=2 ttl=55 time=21 ms
+```
+
+**What it tells you:**
+
+> Can my machine reach the destination at the IP/network level?
+
+If ping fails:
+
+```text
+Request timeout
+```
+
+It **doesn't always mean the server is down**. ICMP may simply be blocked by a firewall/security group.
+
+---
+
+### 2. `nslookup` — Check DNS
+
+```bash
+nslookup myapp.example.com
+```
+
+Example:
+
+```text
+Name:    myapp.example.com
+Address: 10.10.20.50
+```
+
+**What it tells you:**
+
+> Is the domain name resolving to the expected IP address?
+
+If it returns the wrong IP, investigate **DNS/Route 53/hosts file**.
+
+Think:
+
+```text
+myapp.example.com
+        ↓
+      DNS
+        ↓
+   10.10.20.50
+```
+
+---
+
+### 3. `traceroute` — Find where network connectivity is failing
+
+Linux:
+
+```bash
+traceroute myapp.example.com
+```
+
+Example:
+
+```text
+1   192.168.1.1
+2   10.10.0.1
+3   10.10.20.50
+```
+
+**What it tells you:**
+
+> Through which network hops is my traffic travelling?
+
+If it stops at a particular hop, investigate routing/firewall/network connectivity around that point.
+
+---
+
+### 4. `route` — Check the server's routing table
+
+```bash
+route -n
+```
+
+Example:
+
+```text
+Destination     Gateway       Genmask         Iface
+0.0.0.0         10.10.0.1     0.0.0.0         eth0
+10.10.0.0       0.0.0.0       255.255.0.0     eth0
+```
+
+You can also use the modern command:
+
+```bash
+ip route
+```
+
+**What it tells you:**
+
+> Where will my machine send packets for a particular destination?
+
+For example:
+
+```text
+my server
+   ↓
+default route
+   ↓
+10.10.0.1
+   ↓
+Internet / other network
+```
+
+---
+
+### 5. `nc` / `netcat` — Check whether a port is reachable
+
+Suppose the application runs on port `8080`.
+
+```bash
+nc -zv myapp.example.com 8080
+```
+
+Success:
+
+```text
+Connection to myapp.example.com 8080 port [tcp/*] succeeded!
+```
+
+Failure:
+
+```text
+Connection refused
+```
+
+or
+
+```text
+Connection timed out
+```
+
+**What it tells you:**
+
+> Can I establish a TCP connection to this specific port?
+
+This is very useful because **ping only checks ICMP**, while `nc` checks the actual TCP port.
+
+---
+
+### 6. `curl` — Check the HTTP application
+
+```bash
+curl -v http://myapp.example.com:8080
+```
+
+Example:
+
+```text
+> GET / HTTP/1.1
+> Host: myapp.example.com
+
+< HTTP/1.1 200 OK
+```
+
+**What it tells you:**
+
+> Is the HTTP/HTTPS application responding correctly?
+
+You can also check only the headers:
+
+```bash
+curl -I https://myapp.example.com
+```
+
+Example:
+
+```text
+HTTP/1.1 200 OK
+```
+
+If you get:
+
+```text
+HTTP/1.1 500 Internal Server Error
+```
+
+then **network connectivity is working**, but there is likely an application-side problem.
+
+---
+
+### 7. `wget` — Test/download the URL
+
+```bash
+wget https://myapp.example.com/app.tar.gz
+```
+
+**What it tells you:**
+
+> Can I access and download a resource from the HTTP/HTTPS server?
+
+For example, if `curl` and `wget` both fail, investigate the web server/network.
+
+---
+
+### 8. `netstat` — Check listening ports on the server
+
+Login to the application server:
+
+```bash
+netstat -tulnp
+```
+
+Example:
+
+```text
+Proto  Local Address      State
+tcp    0.0.0.0:8080       LISTEN
+tcp    0.0.0.0:22         LISTEN
+```
+
+This tells you that something is listening on:
+
+```text
+8080
+```
+
+If the application is supposed to run on `8080` but you see:
+
+```text
+No 8080 listener
+```
+
+then investigate the **application/service**.
+
+Modern alternative:
+
+```bash
+ss -tulnp
+```
+
+---
+
+### 9. `tcpdump` — See the actual packets
+
+This is useful when everything else is confusing.
+
+On the application server:
+
+```bash
+tcpdump -i eth0 port 8080
+```
+
+Then from another machine:
+
+```bash
+curl http://myapp.example.com:8080
+```
+
+You may see:
+
+```text
+10.10.10.20 > 10.10.20.50: SYN
+10.10.20.50 > 10.10.10.20: SYN, ACK
+10.10.10.20 > 10.10.20.50: ACK
+```
+
+This means the TCP connection is being established.
+
+If you see the incoming `SYN` but no response, investigate:
+
+```text
+Firewall
+Security Group
+Application
+Server
+Network
+```
+
+---
+
+# How all commands fit together
+
+Remember this flow:
+
+```text
+User says:
+"Application is not working"
+             ↓
+        nslookup
+     Is DNS working?
+             ↓
+           ping
+     Can I reach the host?
+             ↓
+        traceroute
+   Where is network failing?
+             ↓
+           route
+    Is routing correct?
+             ↓
+        nc / netcat
+     Is the port reachable?
+             ↓
+         netstat
+ Is application listening on port?
+             ↓
+           curl
+   Is HTTP application working?
+             ↓
+           wget
+ Can I download/access resource?
+             ↓
+         tcpdump
+ What are the actual packets doing?
+```
+
+## One-line interview memory
+
+| Command      | Remember it as                          |
+| ------------ | --------------------------------------- |
+| `ping`       | **Can I reach the host?**               |
+| `nslookup`   | **Is DNS resolving?**                   |
+| `traceroute` | **Where is the network path failing?**  |
+| `route`      | **Where will my packets go?**           |
+| `nc`         | **Is the port reachable?**              |
+| `netstat`    | **Is anything listening on the port?**  |
+| `curl`       | **Is the HTTP application responding?** |
+| `wget`       | **Can I access/download the resource?** |
+| `tcpdump`    | **What are the actual packets doing?**  |
+
+### Very important distinction
+
+```text
+ping       → Host/network connectivity
+nc         → TCP port connectivity
+netstat    → Server listening port
+curl       → HTTP/application response
+tcpdump    → Actual packet-level investigation
+```
+
+For a **DevOps interview**, this is a very good troubleshooting sequence to memorize:
+
+> **DNS → Network → Route → Port → Service → Application → Packets**
