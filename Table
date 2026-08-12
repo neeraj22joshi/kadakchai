@@ -1,0 +1,73 @@
+# Linux Network Troubleshooting Commands
+
+This table is formatted for a GitHub `README.md` or Markdown notes file.
+
+| S.No. | Command              | Main Purpose                                 | Simple Question It Answers                      | Example                                                                                                                                                                                                                       |
+| ----: | -------------------- | -------------------------------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|     1 | `ping`               | Check host reachability                      | **Can I reach the host?**                       | `ping google.com`<br><br>`text<br>64 bytes from 142.250.x.x: icmp_seq=1 ttl=117 time=20.5 ms<br>`<br><br>Uses **ICMP**. If ping does not work, check whether ICMP is allowed by the **Security Group/firewall**.              |
+|     2 | `curl`               | Test HTTP/HTTPS/API                          | **Does the web service respond?**               | `curl https://example.com`<br><br>`text<br>HTTP/1.1 200 OK<br>Content-Type: text/html<br>Content-Length: 1256<br>`                                                                                                            |
+|     3 | `wget`               | Download files/resources                     | **Can I download this file?**                   | `wget https://example.com/app.tar.gz`<br><br>Downloads `app.tar.gz`.                                                                                                                                                          |
+|     4 | `netstat`            | Show network connections and listening ports | **What ports/connections exist?**               | `netstat -tulnp`<br><br>`text<br>tcp  0.0.0.0:22    LISTEN  1234/sshd<br>tcp  0.0.0.0:8080  LISTEN  5678/java<br>`<br><br>`-n` → Show IP addresses and port numbers numerically.<br>`-p` → Show PID and program/process name. |
+|     5 | `ss`                 | Modern replacement for `netstat`             | **What ports/connections exist?**               | `ss -tulnp`<br><br>Modern Linux systems generally use `ss` instead of `netstat`.                                                                                                                                              |
+|     6 | `tcpdump`            | Capture and analyze packets                  | **What network traffic is actually happening?** | `sudo tcpdump -i eth0`<br><br>`text<br>10.0.1.10.54321 > 10.0.1.20.80: Flags [S]<br>10.0.1.20.80 > 10.0.1.10.54321: Flags [S.]<br>10.0.1.10.54321 > 10.0.1.20.80: Flags [.]<br>`                                              |
+|     7 | `nslookup`           | DNS lookup                                   | **What IP does this domain resolve to?**        | `nslookup google.com`<br><br>`text<br>Name:    google.com<br>Address: 142.250.x.x<br>`                                                                                                                                        |
+|     8 | `traceroute`         | Trace network path                           | **Where is the connection failing or delayed?** | `traceroute google.com`<br><br>`text<br>1  192.168.1.1<br>2  10.0.0.1<br>3  172.x.x.x<br>4  ...<br>5  google<br>`                                                                                                             |
+|     9 | `route` / `ip route` | View/manage routing table                    | **Where will packets go?**                      | `ip route`<br><br>`text<br>default via 10.0.1.1 dev eth0<br>10.0.1.0/24 dev eth0<br>`                                                                                                                                         |
+|    10 | `nc` / `netcat`      | Test TCP/UDP ports                           | **Can I connect to this port?**                 | `nc -zv 10.0.1.10 8080`<br><br>`text<br>Connection to 10.0.1.10 8080 port [tcp/*] succeeded!<br>`                                                                                                                             |
+|    11 | `telnet`             | Test TCP connectivity                        | **Is this TCP port reachable?**                 | `telnet 10.0.1.10 8080`<br><br>`text<br>Connected to 10.0.1.10.<br>`<br><br>`telnet` is an old/simple TCP connectivity test. `nc` is more powerful and flexible.                                                              |
+
+## Quick Memory Table
+
+| Command              | Remember It As                          |
+| -------------------- | --------------------------------------- |
+| `ping`               | **Can I reach the host?**               |
+| `nslookup`           | **What IP does the domain resolve to?** |
+| `traceroute`         | **Where is the network path failing?**  |
+| `route` / `ip route` | **Where will packets go?**              |
+| `nc`                 | **Can I connect to the port?**          |
+| `telnet`             | **Can I connect to the TCP port?**      |
+| `netstat`            | **What ports/connections exist?**       |
+| `ss`                 | **Modern `netstat`**                    |
+| `curl`               | **Does the HTTP/API service respond?**  |
+| `wget`               | **Can I download the resource?**        |
+| `tcpdump`            | **What are the actual packets doing?**  |
+
+## Troubleshooting Order
+
+```text
+DNS
+ ↓
+nslookup
+ ↓
+Host Reachability
+ ↓
+ping
+ ↓
+Network Path
+ ↓
+traceroute
+ ↓
+Routing
+ ↓
+ip route
+ ↓
+Port Connectivity
+ ↓
+nc / telnet
+ ↓
+Listening Service
+ ↓
+ss / netstat
+ ↓
+Application
+ ↓
+curl / wget
+ ↓
+Packet-Level Analysis
+ ↓
+tcpdump
+```
+
+**Easy interview line:**
+
+> **`nslookup` → DNS, `ping` → host, `traceroute` → path, `ip route` → routing, `nc` → port, `ss` → listening service, `curl` → application, `tcpdump` → packets.**
