@@ -16,7 +16,7 @@ helm install kyverno kyverno/kyverno \
 Check Kyverno:
 
 ```bash
-kubectl get pods -n kyverno
+kubectl get pods -n kyverno --watch
 ```
 
 ---
