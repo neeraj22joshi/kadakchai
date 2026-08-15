@@ -1,0 +1,251 @@
+````markdown
+# Kyverno - Default Resource Policy
+
+## 1. Install Kyverno
+
+```bash
+helm repo add kyverno https://kyverno.github.io/kyverno
+
+helm repo update
+
+helm install kyverno kyverno/kyverno \
+  --namespace kyverno \
+  --create-namespace \
+  --set replicaCount=1
+````
+
+Check Kyverno:
+
+```bash
+kubectl get pods -n kyverno
+```
+
+---
+
+## 2. Test Pod Before Policy
+
+Create Pod:
+
+```bash
+kubectl run before --image=nginx
+```
+
+Check Pod:
+
+```bash
+kubectl get pods
+```
+
+Describe Pod:
+
+```bash
+kubectl describe pod before
+```
+
+### Result
+
+Since no CPU or memory requests are defined:
+
+```text
+QoS Class: BestEffort
+```
+
+---
+
+## 3. Create Kyverno Policy
+
+Create file:
+
+```bash
+vi policy.yml
+```
+
+### policy.yml
+
+```yaml
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+
+metadata:
+  name: add-default-resources
+
+  annotations:
+    policies.kyverno.io/title: Add Default Resources
+    policies.kyverno.io/category: Other
+    policies.kyverno.io/severity: medium
+    kyverno.io/kyverno-version: 1.10.0-alpha.2
+    policies.kyverno.io/minversion: 1.7.0
+    policies.kyverno.io/kubernetes-version: "1.26"
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Pods which don't specify at least resource requests are assigned a QoS class
+      of BestEffort which can hog resources for other Pods on Nodes. At a minimum,
+      all Pods should specify resource requests in order to be labeled as the QoS
+      class Burstable. This sample mutates any container in a Pod which doesn't
+      specify memory or cpu requests to apply some sane defaults.
+
+spec:
+  background: false
+
+  rules:
+    - name: add-default-requests
+
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+
+      preconditions:
+        any:
+          - key: "{{request.operation || 'BACKGROUND'}}"
+            operator: AnyIn
+            value:
+              - CREATE
+              - UPDATE
+
+      mutate:
+        foreach:
+          - list: "request.object.spec.containers[]"
+
+            patchStrategicMerge:
+              spec:
+                containers:
+                  - (name): "{{element.name}}"
+
+                    resources:
+                      requests:
+                        +(memory): "100Mi"
+                        +(cpu): "100m"
+```
+
+---
+
+## 4. Apply Policy
+
+```bash
+kubectl apply -f policy.yml
+```
+
+Check policy:
+
+```bash
+kubectl get clusterpolicy
+```
+
+---
+
+## 5. Test Pod After Policy
+
+Create another Pod:
+
+```bash
+kubectl run after --image=nginx
+```
+
+Check Pods:
+
+```bash
+kubectl get pods
+```
+
+Describe the Pod:
+
+```bash
+kubectl describe pod after
+```
+
+---
+
+## 6. Verify the Result
+
+The `after` Pod should now have:
+
+```text
+Requests:
+  cpu:     100m
+  memory:  100Mi
+```
+
+And:
+
+```text
+QoS Class: Burstable
+```
+
+You can also verify using:
+
+```bash
+kubectl get pod after -o yaml
+```
+
+---
+
+## 7. Before vs After
+
+| Pod      | CPU Request | Memory Request | QoS          |
+| -------- | ----------- | -------------- | ------------ |
+| `before` | Not defined | Not defined    | `BestEffort` |
+| `after`  | `100m`      | `100Mi`        | `Burstable`  |
+
+---
+
+## 8. How It Works
+
+```text
+Pod Created
+    |
+    v
+Kyverno checks Pod
+    |
+    v
+Checks each container
+    |
+    v
+CPU request missing?
+    └── Yes → Add 100m
+
+Memory request missing?
+    └── Yes → Add 100Mi
+
+    |
+    v
+Pod gets resource requests
+    |
+    v
+QoS = Burstable
+```
+
+---
+
+## 9. Important Part
+
+```yaml
+resources:
+  requests:
+    +(memory): "100Mi"
+    +(cpu): "100m"
+```
+
+`+` means **add the value only if it does not already exist**.
+
+So an existing request will not be overwritten.
+
+---
+
+## 10. Cleanup
+
+```bash
+kubectl delete pod before after
+
+kubectl delete clusterpolicy add-default-resources
+
+helm uninstall kyverno -n kyverno
+
+kubectl delete namespace kyverno
+```
+
+```
+
+This version is closer to **your usual interview/revision notes style**: command → result → short explanation, without unnecessary sections.
+```
