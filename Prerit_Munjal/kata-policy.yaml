@@ -1,0 +1,17 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: enforce-kata-runtimeclass
+spec:
+  validationFailureAction: enforce
+  rules:
+    - name: require-kata-runtimeclass
+      match:
+        resources:
+          kinds:
+            - Pod
+      validate:
+        message: "Pods must use Kata Containers as the runtimeClass."
+        pattern:
+          spec:
+            runtimeClassName: "kata"
