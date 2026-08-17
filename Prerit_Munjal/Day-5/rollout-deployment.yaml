@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rollout-demo
+  labels:
+    app: rollout-demo
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: rollout-phase
+  template:
+    metadata:
+      labels:
+        app: rollout-phase
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.14.2
+          ports:
+            - containerPort: 80
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 50%
+      maxUnavailable: 25%
