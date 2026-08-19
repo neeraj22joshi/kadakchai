@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-limit-req
+  namespace: default
+spec:
+  containers:
+    - name: pod-limit-req
+      image: nginx
+      resources:
+        limits:
+          memory: "400Mi"
+          cpu: "700m"
+        requests:
+          memory: "300Mi"
+          cpu: "600m"
